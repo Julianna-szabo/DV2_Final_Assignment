@@ -1,0 +1,168 @@
+---
+title: "Data Visualization Final Project"
+author: "Julianna Szabo"
+date: "3/29/2021"
+output:
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+
+```
+
+
+```{r libraries, echo=FALSE, message=FALSE, comment=FALSE, warning=FALSE}
+#libraries 
+
+library(data.table)
+library(ggplot2)
+library(GGally)
+library(pander)
+library(gganimate)
+library(transformr)
+```
+
+In this project, we will be analysing how the earning differ between men and women in the US. This data was collected in 2019 so results may have changes since then.
+
+# Questions
+
+Some of the questions I will be trying to answer in this report are:  
+
+* Is there really a gender gap between earnings and number of females in certain positions?
+* Is the gender gap the same across industries or positions?
+* Are some age groups more affected?
+* Is there a difference between full-time and part-time?
+
+# Loading the data
+
+```{r, echo=FALSE}
+obs_gender <- fread("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-03-05/jobs_gender.csv")
+earnings_female <- fread("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-03-05/earnings_female.csv") 
+employed_gender <- fread("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-03-05/employed_gender.csv") 
+```
+
+We are loading three datasets that all include important information that we will be used in this anaylsis. The three datasets help bring more data to the same point, but cannot be combined since they all show different aspects of the same situation. The only thing they have in common the timeline, but that is not a good factor for merging.
+
+# Data understanding
+
+For the data understanding, we will be focusing on the first table comparing wages across positions for both genders. This will be the main table used for analysis and the others will be used or merged as needed.
+
+```{r, out.height="150%", out.width="150%"}
+pander(summary(obs_gender))
+plot(obs_gender)
+```
+
+
+
+Looks like the data is either linear or normal so we can use it for analysis. The only fields that look correlated are the ones that have been calculated from each other or that show the same measurements such as number of workers or earning.
+
+```{r}
+plot(x = obs_gender$total_earnings_male, y = obs_gender$total_earnings_female)
+```
+
+This plot does make it look like where men ear a certain amount women ear less. However, since this plots everyone across all jobs this may be a bit general, so here we might be comparing apples to oranges. Therefore, we should look at it based on positions.
+
+This data does include some time series-like aspect with the year variable, so that should be checked.
+
+```{r, warning = FALSE, out.width="50%", figures-side_1, fig.show="hold", out.height="150%"}
+plot(x = obs_gender$year, y = obs_gender$total_workers)
+plot(x = obs_gender$year, y = obs_gender$total_earnings)
+```
+
+Looking at both the total earning and the total number of workers, there seems to have not been much change in the period between 2013 and 2016.
+Therefore, this factor can be discarded when making comparisons.
+
+# Number of women and their income in a different industries
+
+```{r}
+female <- obs_gender[, list(total_workers = sum(total_workers), 
+                            percent_female = mean(percent_female), 
+                            total_earnings = mean(total_earnings), 
+                            wage_percent_of_male = mean(wage_percent_of_male, na.rm = TRUE)),
+                     by = 'minor_category']
+
+theme_custom <- theme(
+  text = element_text(family = "Palatino", size = 12),
+  legend.position = 'bottom',
+  plot.background = element_rect(color = "black", size = 1)
+)
+```
+
+```{r, warning = FALSE, out.width="50%", figures-side_2, fig.show="hold", out.height="150%"}
+ggplot( female, aes( x = minor_category, y = total_workers)) +
+  geom_histogram( stat = 'identity') +
+  theme_bw() + theme_custom + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = 'Number of total workers per industry', y = 'Total number of workers')
+
+ggplot( female, aes( x = minor_category, y = percent_female)) +
+  geom_histogram( stat = 'identity') +
+  theme_bw() + theme_custom + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = 'Percentage of female workers per industry', y = 'Percentage of female workers')
+```
+
+Looks like there are definitely industries where there are significantly less women, such as Construction or Instalations. These are usually considered male professions so this gap is expected with less than 10% women. However, hopefully women find these professions for themselves as well in the future if they want to go into them. However, there are also industries such as Healthcare and Education which are usually considered female professions where the percentage of woemn is well over 70%.
+
+```{r, warning = FALSE, out.width="50%", figures-side_3, fig.show="hold"}
+ggplot( female, aes( x = minor_category, y = total_earnings)) +
+  geom_histogram( stat = 'identity') +
+  theme_bw() + theme_custom + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = 'Yearly earning per industry', y = 'Salary ($)')
+
+ggplot( female, aes( x = minor_category, y = wage_percent_of_male)) +
+  geom_histogram( stat = 'identity') +
+  theme_bw() + theme_custom + theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = 'Percentage of female wage per industry', y = 'Percentage of female wage')
+```
+
+Interestingly while the pay varies significantly across all industries, the difference between men and women stays relatively stable at around 70%. This shows that this does seem to be a systematic issue and not something that just comes up in some industries or workplaces.
+
+# Change in wage percengate over the past 30 years
+
+```{r}
+str(earnings_female)
+
+unique(earnings_female$group)
+```
+
+Looks like there is an additional Total column which I will excluse since it includes all the other categories therefore will not add more information.
+
+```{r}
+wage_gap <- earnings_female[group != "Total, 16 years and older", ]
+
+ggplot(wage_gap, aes(x = Year, y = percent, color = group)) +
+  geom_point() +
+  geom_smooth(method = 'lm', se = TRUE) +
+  theme_bw() + theme_custom +
+  transition_states(group) +
+  labs(title = '{closest_state}', y = 'Percent of female wages of men (%)')
+```
+
+It is interesting to see that the younger the people are the smaller the gap is. This could be with the elderly when they started working the gap was bigger and they could only improve it so much. It could also be because of the above seen difference in work.
+
+# The makeup of the work force
+
+```{r, warning = FALSE, out.width="50%", figures-side_4, fig.show="hold"}
+ggplot(data = employed_gender) +
+  geom_line(aes(x = year, y = full_time_female), color = 'maroon2') +
+  geom_line(aes(x = year, y = full_time_male), color = 'blue') +
+  theme_bw() + theme_custom +
+  transition_reveal(year) +
+  labs(title = 'Change in percentage of Full-time work', y = "Percentage of full-time workers")
+
+ggplot(data = employed_gender) +
+  geom_line(aes(x = year, y = part_time_female), color = 'maroon2') +
+  geom_line(aes(x = year, y = part_time_male), color = 'blue') +
+  theme_bw() + theme_custom +
+  transition_reveal(year) +
+  labs(title = 'Change in percentage of part-time work', y = "Percentage of part-time workers")
+```
+The blue line represents men and the pink one women.
+
+
+It is really interesting how gender affects the type of jobs that are most common. While it has decreased over the past 30 years, men still hold full-time jobs in over 80% of cases. Women on the other hand only have full-time jobs in around 70-75% of cases and about 25% have part-time jobs. This is much higher than the around 10-15% of men.
+
+# Conclusion
+
+Overall it seems that the gendergap is actually real in many ways. Women are not represented in some positions and are payed less across all types of positions amd have been for the past 30 years. This doesn't change when they get older, it actually becomes worse. Further, they are also less likely to hold full-time jobs by about 10%. This is a very important to have this data layed out and shown. While this analysis doesn't prove any type of causation, it does show some type of correlation between gender and amount earned.
